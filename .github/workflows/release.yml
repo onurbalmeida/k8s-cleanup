@@ -132,6 +132,17 @@ jobs:
           version: v3.14.4
       - name: Helm login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Sync image.tag with TAG (appVersion)
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          sed -i -E 's/^appVersion:.*/appVersion: "'$TAG'"/' chart/k8s-cleanup/Chart.yaml
+          awk -v tag="$TAG" '
+            BEGIN{inimg=0}
+            /^image:/ {inimg=1; print; next}
+            inimg==1 && /^[[:space:]]tag:/ {sub(/tag:.*/, "tag: \"" tag "\""); inimg=0}
+            {print}
+          ' chart/k8s-cleanup/values.yaml > chart/k8s-cleanup/values.yaml.tmp && mv chart/k8s-cleanup/values.yaml.tmp chart/k8s-cleanup/values.yaml
       - name: Package chart
         run: |
           set -euo pipefail
