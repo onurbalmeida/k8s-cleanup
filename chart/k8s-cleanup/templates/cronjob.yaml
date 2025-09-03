@@ -27,7 +27,7 @@ spec:
             - "--namespace={{ .Values.args.namespace }}"
             {{- end }}
             {{- if .Values.args.excludeNamespaces }}
-            - "--exclude-ns={{ join \",\" .Values.args.excludeNamespaces }}"
+            - "--exclude-ns={{ join "," .Values.args.excludeNamespaces }}"
             {{- end }}
             {{- if .Values.args.labelSelector }}
             - "--label-selector={{ .Values.args.labelSelector }}"
