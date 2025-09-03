@@ -28,7 +28,7 @@ jobs:
           D=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           GOOS=linux   GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-amd64 .
           GOOS=linux   GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-arm64 .
-          GOOS=darwin  GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s - w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
+          GOOS=darwin  GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
           GOOS=windows GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-windows-amd64.exe .
       - uses: softprops/action-gh-release@v2
         with:
@@ -76,7 +76,6 @@ jobs:
           cache-to: type=gha,mode=max
 
   helm:
-    if: hashFiles('chart/k8s-cleanup/Chart.yaml') != ''
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -99,7 +98,6 @@ jobs:
 
   artifacthub:
     needs: helm
-    if: needs.helm.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
