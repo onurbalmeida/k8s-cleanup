@@ -84,13 +84,25 @@ jobs:
       - uses: azure/setup-helm@v4
         with:
           version: v3.14.4
-      - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-      - run: |
+      - name: Helm login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Package and push chart release
+        run: |
           CHART=charts/k8s-cleanup
           V=${GITHUB_REF_NAME#v}
           APPV=${GITHUB_REF_NAME}
           helm package "$CHART" --version "$V" --app-version "$APPV" -d dist
           helm push dist/k8s-cleanup-$V.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+      - name: Make chart public (best effort)
+        if: secrets.GHCR_VISIBILITY_PAT != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_VISIBILITY_PAT }}
+        run: |
+          echo "$GH_TOKEN" | gh auth login --with-token
+          gh api -X PATCH -H "Accept: application/vnd.github+json" \
+            /user/packages/container/charts%2Fk8s-cleanup/visibility \
+            -f visibility=public
 
   artifacthub:
     needs: helm
