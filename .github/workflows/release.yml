@@ -1,11 +1,38 @@
 name: release
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [ main ]
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  version:
+    name: Bump version and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.bump.outputs.new_tag }}
+      ver: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: bump
+        uses: anothrNick/github-tag-action@1.71.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+          RELEASE_BRANCHES: main
+          PRERELEASE: false
+          VERBOSE: true
+
   test:
     runs-on: ubuntu-latest
+    needs: version
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -15,30 +42,38 @@ jobs:
       - run: go test ./...
 
   binaries:
-    needs: test
+    name: Build binaries and GitHub Release
     runs-on: ubuntu-latest
+    needs: [version, test]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.x'
-      - run: |
-          V=${GITHUB_REF_NAME}
+      - name: Build cross-platform
+        run: |
+          V=${{ needs.version.outputs.tag }}
           C=${GITHUB_SHA::7}
           D=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          mkdir -p bin
           GOOS=linux   GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-amd64 .
           GOOS=linux   GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-arm64 .
           GOOS=darwin  GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
           GOOS=windows GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-windows-amd64.exe .
-      - uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
           files: bin/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   image:
-    needs: test
+    name: Build and push container image
     runs-on: ubuntu-latest
+    needs: [version, test]
     permissions:
       contents: read
       packages: write
@@ -56,9 +91,9 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ github.ref_name }}
+            type=raw,value=${{ needs.version.outputs.tag }}
             type=raw,value=latest
-      - name: Set date env
+      - name: Set build date
         run: echo "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
       - uses: docker/build-push-action@v6
         with:
@@ -69,15 +104,16 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ needs.version.outputs.tag }}
             COMMIT=${{ github.sha }}
             DATE=${{ env.DATE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   helm:
-    needs: test
+    name: Package and push Helm chart
     runs-on: ubuntu-latest
+    needs: [version, test]
     permissions:
       contents: read
       packages: write
@@ -88,17 +124,20 @@ jobs:
           version: v3.14.4
       - name: Helm login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Package and push chart release
+      - name: Package and push chart
         run: |
           CHART=chart/k8s-cleanup
-          V=${GITHUB_REF_NAME#v}
-          APPV=${GITHUB_REF_NAME}
+          V=${{ needs.version.outputs.ver }}
+          APPV=${{ needs.version.outputs.tag }}
           helm package "$CHART" --version "$V" --app-version "$APPV" -d dist
           helm push dist/k8s-cleanup-$V.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+      - name: Show chart
+        run: helm show chart oci://ghcr.io/${{ github.repository_owner }}/charts/k8s-cleanup --version ${{ needs.version.outputs.ver }}
 
   artifacthub:
-    needs: helm
+    name: Push Artifact Hub metadata
     runs-on: ubuntu-latest
+    needs: helm
     permissions:
       contents: read
       packages: write
@@ -106,7 +145,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oras-project/setup-oras@v1
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
-      - run: |
+      - name: Push artifacthub-repo.yml if present
+        if: ${{ hashFiles('artifacthub-repo.yml') != '' }}
+        run: |
           oras push ghcr.io/${{ github.repository_owner }}/charts/k8s-cleanup:artifacthub.io \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
             artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
