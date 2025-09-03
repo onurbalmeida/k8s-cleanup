@@ -9,7 +9,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.25.x' }
+        with:
+          go-version: '1.25.x'
       - run: go mod tidy
       - run: go test ./...
 
@@ -19,15 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.25.x' }
+        with:
+          go-version: '1.25.x'
       - run: |
           V=${GITHUB_REF_NAME}
           C=${GITHUB_SHA::7}
           D=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-amd64 .
-          GOOS=linux   GOARCH=arm64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-arm64 .
-          GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
-          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-windows-amd64.exe .
+          GOOS=linux   GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-amd64 .
+          GOOS=linux   GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-arm64 .
+          GOOS=darwin  GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
+          GOOS=windows GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-windows-amd64.exe .
       - uses: softprops/action-gh-release@v2
         with:
           files: bin/*
@@ -80,8 +82,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
-        with: { version: v3.14.4 }
-      - run: helm version
+        with:
+          version: v3.14.4
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
       - run: |
           CHART=charts/k8s-cleanup
@@ -89,3 +91,18 @@ jobs:
           APPV=${GITHUB_REF_NAME}
           helm package "$CHART" --version "$V" --app-version "$APPV" -d dist
           helm push dist/k8s-cleanup-$V.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+
+  artifacthub:
+    needs: helm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oras-project/setup-oras@v1
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+      - run: |
+          oras push ghcr.io/${{ github.repository_owner }}/charts/k8s-cleanup:artifacthub.io \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
