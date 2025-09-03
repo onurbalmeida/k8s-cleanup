@@ -48,6 +48,8 @@ jobs:
           tags: |
             type=raw,value=main
             type=sha,format=short,prefix=sha-
+      - name: Set date env
+        run: echo "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -59,7 +61,7 @@ jobs:
           build-args: |
             VERSION=main
             COMMIT=${{ github.sha }}
-            DATE=${{ github.event.head_commit.timestamp }}
+            DATE=${{ env.DATE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -84,12 +86,11 @@ jobs:
           helm package "$CHART" --version "$CHVER" --app-version "$APPV" -d dist
           helm push dist/k8s-cleanup-$CHVER.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
       - name: Make chart public (best effort)
-        if: secrets.GHCR_VISIBILITY_PAT != ''
-        continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.GHCR_VISIBILITY_PAT }}
+          GHCR_VISIBILITY_PAT: ${{ secrets.GHCR_VISIBILITY_PAT }}
+        if: ${{ env.GHCR_VISIBILITY_PAT != '' }}
         run: |
-          echo "$GH_TOKEN" | gh auth login --with-token
+          echo "$GHCR_VISIBILITY_PAT" | gh auth login --with-token
           gh api -X PATCH -H "Accept: application/vnd.github+json" \
             /user/packages/container/charts%2Fk8s-cleanup/visibility \
             -f visibility=public
