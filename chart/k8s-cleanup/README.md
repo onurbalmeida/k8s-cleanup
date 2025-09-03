@@ -14,21 +14,22 @@ Cleanup **old Pods and Jobs** in Kubernetes. Deploy as a **one‑shot Job** or a
 
 ### Run once (Job)
 ```bash
-helm install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 0.1.3   -n ops --create-namespace   --set schedule=""   --set image.repository=ghcr.io/onurbalmeida/k8s-cleanup   --set image.tag=v0.1.3   --set args.allNamespaces=false   --set args.namespace=cleanup-test   --set args.olderThan=12h   --set args.dryRun=false
+helm install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 1.2.3   -n ops --create-namespace   --set schedule=""   --set image.repository=ghcr.io/onurbalmeida/k8s-cleanup   --set image.tag=v1.2.3   --set args.allNamespaces=false   --set args.namespace=cleanup-test   --set args.olderThan=12h   --set args.dryRun=false
 ```
 
 ### Run on a schedule (CronJob, daily at 02:00)
 ```bash
-helm install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 0.1.3   -n ops --create-namespace   --set schedule="0 2 * * *"   --set image.repository=ghcr.io/onurbalmeida/k8s-cleanup   --set image.tag=v0.1.3   --set args.allNamespaces=true   --set args.olderThan=24h   --set args.dryRun=false
+helm install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 1.2.3   -n ops --create-namespace   --set schedule="0 2 * * *"   --set image.repository=ghcr.io/onurbalmeida/k8s-cleanup   --set image.tag=v1.2.3   --set args.allNamespaces=true   --set args.olderThan=24h   --set args.dryRun=false
 ```
 
 Inspect the chart directly from the registry:
 ```bash
-helm show chart  oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 0.1.3
-helm show values oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 0.1.3
+helm show chart  oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 1.2.3
+helm show values oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 1.2.3
 ```
 
-> Tip: Pin **both** the chart version (`--version`) and the image tag (`image.tag`) for reproducible results.
+> 💡 **Note:** In the examples below we use `--version 1.2.3` and `image.tag=v1.2.3` only as placeholders.
+> Always replace them with the actual version you want to use to ensure reproducible results.
 
 ---
 
@@ -46,12 +47,12 @@ helm show values oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 0.1.3
 
 Single namespace cleanup:
 ```bash
-helm upgrade --install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 0.1.3 -n ops   --set schedule=""   --set image.tag=v0.1.3   --set args.allNamespaces=false   --set args.namespace=cleanup-test   --set args.olderThan=12h   --set args.failed=true --set args.completed=true --set args.evicted=true   --set args.dryRun=false
+helm upgrade --install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 1.2.3 -n ops   --set schedule=""   --set image.tag=v1.2.3   --set args.allNamespaces=false   --set args.namespace=cleanup-test   --set args.olderThan=12h   --set args.failed=true --set args.completed=true --set args.evicted=true   --set args.dryRun=false
 ```
 
 Cluster‑wide but skip system + Helm namespace (`ops`):
 ```bash
-helm upgrade --install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 0.1.3 -n ops   --set schedule="*/30 * * * *"   --set image.tag=v0.1.3   --set args.allNamespaces=true   --set args.excludeNamespaces="{ops,kube-system,kube-public,local-path-storage}"   --set args.olderThan=24h --set args.dryRun=false
+helm upgrade --install cleanup oci://ghcr.io/onurbalmeida/charts/k8s-cleanup   --version 1.2.3 -n ops   --set schedule="*/30 * * * *"   --set image.tag=v1.2.3   --set args.allNamespaces=true   --set args.excludeNamespaces="{ops,kube-system,kube-public,local-path-storage}"   --set args.olderThan=24h --set args.dryRun=false
 ```
 
 Only Jobs (skip Pods):
@@ -79,7 +80,7 @@ Dry‑run with JSON output and non‑zero exit if changes:
 |-----|------|---------|-------------|
 | `schedule` | string | `"0 2 * * *"` | When set, deploy as **CronJob**; empty for **one‑shot Job** |
 | `image.repository` | string | `ghcr.io/onurbalmeida/k8s-cleanup` | Container image repository |
-| `image.tag` | string | chart `.appVersion` | Container image tag (e.g., `v0.1.3`) |
+| `image.tag` | string | chart `.appVersion` | Container image tag (e.g., `v1.2.3`) |
 | `image.pullPolicy` | string | `IfNotPresent` | Image pull policy |
 | `args.dryRun` | bool | `true` | Don’t delete, only report |
 | `args.olderThan` | string | `"24h"` | Age threshold (`30m`, `12h`, `7d`, …) |
@@ -109,7 +110,7 @@ Dry‑run with JSON output and non‑zero exit if changes:
 
 Show defaults straight from registry:
 ```bash
-helm show values oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 0.1.3
+helm show values oci://ghcr.io/onurbalmeida/charts/k8s-cleanup --version 1.2.3
 ```
 
 ---
@@ -141,8 +142,10 @@ kubectl -n ops logs job/cleanup-k8s-cleanup
 
 ## 🔖 Versioning
 
-- **Chart version**: Helm packaging (e.g., `0.1.3`).
-- **AppVersion**: container image tag (e.g., `v0.1.3`). Pin both for reproducibility.
+- **Chart version**: Helm packaging (por exemplo `1.2.3`).
+- **AppVersion**: container image tag (por exemplo `v1.2.3`).
+
+⚠️ Always use the actual version you intend to deploy instead of the placeholder.
 
 ---
 
