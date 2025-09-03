@@ -1,0 +1,70 @@
+{{- if .Values.schedule }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "k8s-cleanup.fullname" . }}
+  labels:
+    {{- include "k8s-cleanup.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ default (include "k8s-cleanup.fullname" .) .Values.serviceAccount.name }}
+          restartPolicy: Never
+          containers:
+          - name: k8s-cleanup
+            image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            args:
+            - run
+            - "--older-than={{ .Values.args.olderThan }}"
+            - "--dry-run={{ .Values.args.dryRun }}"
+            {{- if .Values.args.allNamespaces }}
+            - "--all-namespaces"
+            {{- else if .Values.args.namespace }}
+            - "--namespace={{ .Values.args.namespace }}"
+            {{- end }}
+            {{- if .Values.args.excludeNamespaces }}
+            - "--exclude-ns={{ join "," .Values.args.excludeNamespaces }}"
+            {{- end }}
+            {{- if .Values.args.labelSelector }}
+            - "--label-selector={{ .Values.args.labelSelector }}"
+            {{- end }}
+            {{- if .Values.args.fieldSelector }}
+            - "--field-selector={{ .Values.args.fieldSelector }}"
+            {{- end }}
+            {{- if not .Values.args.completed }}
+            - "--completed=false"
+            {{- end }}
+            {{- if not .Values.args.failed }}
+            - "--failed=false"
+            {{- end }}
+            {{- if not .Values.args.evicted }}
+            - "--evicted=false"
+            {{- end }}
+            {{- if .Values.args.protect }}
+            - "--protect={{ .Values.args.protect }}"
+            {{- end }}
+            - "--concurrency={{ .Values.args.concurrency }}"
+            - "--output={{ .Values.args.output }}"
+            {{- if .Values.args.auditFile }}
+            - "--audit-file={{ .Values.args.auditFile }}"
+            {{- end }}
+            {{- if .Values.args.exitNonZeroOnChanges }}
+            - "--exit-nonzero-on-changes"
+            {{- end }}
+            - "--log-level={{ .Values.args.logLevel }}"
+            {{- range .Values.args.extra }}
+            - "{{ . }}"
+            {{- end }}
+            resources:
+              {{- toYaml .Values.resources | nindent 14 }}
+          nodeSelector:
+            {{- toYaml .Values.nodeSelector | nindent 12 }}
+          tolerations:
+            {{- toYaml .Values.tolerations | nindent 12 }}
+          affinity:
+            {{- toYaml .Values.affinity | nindent 12 }}
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: k8s-cleanup
+description: Cleanup old pods and jobs in Kubernetes
+type: application
+version: 0.1.7
+appVersion: "0.1.7"
