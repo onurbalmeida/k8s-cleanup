@@ -66,7 +66,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   chart:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && hashFiles('chart/k8s-cleanup/Chart.yaml') != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -80,20 +80,11 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Package and push chart snapshot
         run: |
-          CHART=charts/k8s-cleanup
+          CHART=chart/k8s-cleanup
           CHVER=0.0.0-main.${{ github.run_number }}
           APPV=main
           helm package "$CHART" --version "$CHVER" --app-version "$APPV" -d dist
           helm push dist/k8s-cleanup-$CHVER.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
-      - name: Make chart public (best effort)
-        env:
-          GHCR_VISIBILITY_PAT: ${{ secrets.GHCR_VISIBILITY_PAT }}
-        if: ${{ env.GHCR_VISIBILITY_PAT != '' }}
-        run: |
-          echo "$GHCR_VISIBILITY_PAT" | gh auth login --with-token
-          gh api -X PATCH -H "Accept: application/vnd.github+json" \
-            /user/packages/container/charts%2Fk8s-cleanup/visibility \
-            -f visibility=public
       - name: Verify pull
         continue-on-error: true
         run: |
