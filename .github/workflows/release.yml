@@ -58,6 +58,8 @@ jobs:
           tags: |
             type=raw,value=${{ github.ref_name }}
             type=raw,value=latest
+      - name: Set date env
+        run: echo "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -69,7 +71,7 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
             COMMIT=${{ github.sha }}
-            DATE=${{ github.event.head_commit.timestamp }}
+            DATE=${{ env.DATE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -114,6 +116,6 @@ jobs:
       - uses: oras-project/setup-oras@v1
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
       - run: |
-        oras push ghcr.io/${{ github.repository_owner }}/charts/k8s-cleanup:artifacthub.io \
-          --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
-          artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+          oras push ghcr.io/${{ github.repository_owner }}/charts/k8s-cleanup:artifacthub.io \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
