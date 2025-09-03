@@ -1,5 +1,6 @@
 # k8s-cleanup
 
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/k8s-cleanup)](https://artifacthub.io/packages/search?repo=k8s-cleanup)
 [![CI](https://github.com/onurbalmeida/k8s-cleanup/actions/workflows/ci.yml/badge.svg)](https://github.com/onurbalmeida/k8s-cleanup/actions/workflows/ci.yml)
 [![Release](https://github.com/onurbalmeida/k8s-cleanup/actions/workflows/release.yml/badge.svg)](https://github.com/onurbalmeida/k8s-cleanup/actions/workflows/release.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/onurbalmeida/k8s-cleanup.svg)](https://pkg.go.dev/github.com/onurbalmeida/k8s-cleanup)
