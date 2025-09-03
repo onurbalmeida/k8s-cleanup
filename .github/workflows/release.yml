@@ -63,8 +63,7 @@ jobs:
           GOOS=linux   GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-arm64 .
           GOOS=darwin  GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
           GOOS=windows GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-windows-amd64.exe .
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           files: bin/*
@@ -125,13 +124,22 @@ jobs:
           version: v3.14.4
       - name: Helm login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Package and push chart
+      - name: Package chart
+        env:
+          CHART: chart/k8s-cleanup
+          CHART_VERSION: ${{ needs.version.outputs.ver }}
+          APP_VERSION: ${{ needs.version.outputs.tag }}
         run: |
-          CHART=chart/k8s-cleanup
-          V=${{ needs.version.outputs.ver }}
-          APPV=${{ needs.version.outputs.tag }}
-          helm package "$CHART" --version "$V" --app-version "$APPV" -d dist
-          helm push dist/k8s-cleanup-$V.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          set -euo pipefail
+          mkdir -p dist
+          helm package "$CHART" --version "$CHART_VERSION" --app-version "$APP_VERSION" -d dist
+          ls -lah dist
+      - name: Push chart
+        env:
+          CHART_VERSION: ${{ needs.version.outputs.ver }}
+        run: |
+          set -euo pipefail
+          helm push "dist/k8s-cleanup-${CHART_VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
       - name: Show chart
         run: helm show chart oci://ghcr.io/${{ github.repository_owner }}/charts/k8s-cleanup --version ${{ needs.version.outputs.ver }}
 
