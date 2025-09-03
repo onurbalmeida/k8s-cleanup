@@ -1,87 +1,36 @@
-name: release
-on:
-  push:
-    tags: ["v*.*.*"]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.25.x' }
-      - run: go mod tidy
-      - run: go test ./...
-
-  binaries:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.25.x' }
-      - run: |
-          V=${GITHUB_REF_NAME}
-          C=${GITHUB_SHA::7}
-          D=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-amd64 .
-          GOOS=linux   GOARCH=arm64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-linux-arm64 .
-          GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-darwin-arm64 .
-          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X github.com/onurbalmeida/k8s-cleanup/cmd.Version=$V -X github.com/onurbalmeida/k8s-cleanup/cmd.Commit=$C -X github.com/onurbalmeida/k8s-cleanup/cmd.Date=$D -X github.com/onurbalmeida/k8s-cleanup/cmd.BuiltBy=gha" -o bin/k8s-cleanup-windows-amd64.exe .
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: bin/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  image:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=${{ github.ref_name }}
-            type=raw,value=latest
-      - uses: docker/build-push-action@v6
-        with:
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-            DATE=${{ github.event.head_commit.timestamp }}
-
-  helm:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
-        with: { version: v3.14.4 }
-      - run: helm version
-      - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-      - run: |
-          CHART=charts/k8s-cleanup
-          V=${GITHUB_REF_NAME#v}
-          APPV=${GITHUB_REF_NAME}
-          helm package "$CHART" --version "$V" --app-version "$APPV" -d dist
-          helm push dist/k8s-cleanup-$V.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+image:
+  needs: test
+  runs-on: ubuntu-latest
+  permissions:
+    contents: read
+    packages: write
+  steps:
+    - uses: actions/checkout@v4
+    - uses: docker/setup-qemu-action@v3
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: docker/metadata-action@v5
+      id: meta
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags: |
+          type=raw,value=${{ github.ref_name }}
+          type=raw,value=latest
+    - uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        platforms: linux/amd64,linux/arm64
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          VERSION=${{ github.ref_name }}
+          COMMIT=${{ github.sha }}
+          DATE=${{ github.event.head_commit.timestamp }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
